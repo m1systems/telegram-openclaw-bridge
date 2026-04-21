@@ -1,0 +1,62 @@
+# ----------------------------
+# Build artifacts
+# ----------------------------
+bin/
+obj/
+out/
+publish/
+
+# ----------------------------
+# Visual Studio / IDE
+# ----------------------------
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / VSCode (optional but safe)
+.idea/
+.vscode/
+
+# ----------------------------
+# OS junk
+# ----------------------------
+.DS_Store
+Thumbs.db
+
+# ----------------------------
+# Logs
+# ----------------------------
+*.log
+
+# ----------------------------
+# Local config (IMPORTANT)
+# ----------------------------
+appsettings.json
+**/appsettings.json
+
+# ----------------------------
+# Environment / secrets
+# ----------------------------
+.env
+.env.*
+
+# ----------------------------
+# .NET publish profiles
+# ----------------------------
+*.pubxml
+*.pubxml.user
+
+# ----------------------------
+# Test / temp
+# ----------------------------
+TestResults/
+tmp/
+temp/
+
+# ----------------------------
+# Misc
+# ----------------------------
+*.cache
+*.pid
