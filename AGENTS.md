@@ -22,16 +22,16 @@ Before making any change, the agent MUST perform these steps in order:
 
 ```bash
 git status
-git checkout master
-git pull origin master
+git checkout main
+git pull origin main
 git checkout -b feature/<task-name>
 ```
 
 ### Startup Rules
 - If `git status` is not clean, STOP and report the dirty state
-- If `git checkout master` fails, STOP and report
-- If `git pull origin master` fails, STOP and report
-- Never begin work from the current branch without first returning to `master`
+- If `git checkout main` fails, STOP and report
+- If `git pull origin main` fails, STOP and report
+- Never begin work from the current branch without first returning to `main`
 - Never branch from an existing feature branch unless explicitly instructed to do so
 
 ---
@@ -66,7 +66,7 @@ The agent MUST NOT:
 ### Prohibited
 - Reusing an existing feature branch
 - Creating a new branch from another feature branch
-- Pushing directly to `master`
+- Pushing directly to `main`
 - Merging pull requests
 - Deleting branches
 - Force pushing
@@ -108,7 +108,7 @@ git push -u origin <branch-name>
 ```
 
 The agent MUST NOT:
-- Push directly to `master`
+- Push directly to `main`
 - Push tags
 - Push with `--force`
 - Push any branch other than the task branch
@@ -132,8 +132,8 @@ If validation is skipped because no suitable command is known or available, the 
 If any of the following occur, STOP and report clearly:
 
 - Working tree is not clean
-- Cannot checkout `master`
-- Cannot pull latest `master`
+- Cannot checkout `main`
+- Cannot pull latest `main`
 - Branch creation fails
 - Branch already exists
 - Merge conflicts occur

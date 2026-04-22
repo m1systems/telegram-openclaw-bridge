@@ -29,6 +29,51 @@ namespace TelegramOpenClaw
             _httpClient.Timeout = TimeSpan.FromSeconds(60);
         }
 
+        public async Task<string> SendImageAsync(long chatId, byte[] imageBytes, string mimeType, string? caption, CancellationToken ct)
+        {
+            var sessionKey = GetSessionKey(chatId);
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, _settings.ChatEndpoint);
+            request.Headers.Add("x-openclaw-session-key", sessionKey);
+
+            var base64 = Convert.ToBase64String(imageBytes);
+            var dataUrl = $"data:{mimeType};base64,{base64}";
+
+            var userContent = new List<object>
+            {
+                new { type = "image_url", image_url = new { url = dataUrl } }
+            };
+
+            if (!string.IsNullOrWhiteSpace(caption))
+                userContent.Insert(0, new { type = "text", text = caption });
+
+            var payload = new
+            {
+                model = "openclaw/default",
+                messages = new object[]
+                {
+                    new { role = "system", content = "You are OpenClaw, an AI systems control assistant running on a private infrastructure gateway." },
+                    new { role = "user", content = userContent }
+                }
+            };
+
+            request.Content = JsonContent.Create(payload);
+
+            using var response = await _httpClient.SendAsync(request, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "OpenClaw image request failed for chat {ChatId}, session {SessionKey}: {StatusCode} {Body}",
+                    chatId, sessionKey, (int)response.StatusCode, body);
+
+                throw new HttpRequestException($"OpenClaw returned {(int)response.StatusCode}: {body}");
+            }
+
+            return TryExtractChatCompletionText(body) ?? body;
+        }
+
         public async Task<string> SendCommandAsync(long chatId, string command, CancellationToken ct)
         {
             var sessionKey = GetSessionKey(chatId);

@@ -59,6 +59,7 @@ Key design decisions:
   * `/help`
   * `/status`
 * Natural chat (no command prefix required)
+* Photo message support with optional caption forwarding
 * Console logging via `journalctl` (no log files)
 
 ---
@@ -199,6 +200,7 @@ No log files are created by the application.
 Once running, send messages to your Telegram bot:
 
 * normal messages → forwarded to OpenClaw
+* photo messages → forwarded to OpenClaw, with caption included if present
 * `/help` → shows available commands
 * `/status` → shows bridge and OpenClaw status
 
@@ -246,7 +248,7 @@ This repository includes an `AGENTS.md` file that defines strict rules for auton
 Key guarantees:
 
 * agents work only on feature branches
-* `master` remains protected
+* `main` remains protected
 * all changes go through pull requests
 * deterministic git workflow is enforced
 
@@ -256,10 +258,10 @@ This makes the repo safe for OpenClaw-driven development workflows.
 
 ## Future Enhancements
 
-* Telegram image handling
 * additional control commands
 * session reset / fork behavior
 * richer status output
+* broader media support beyond photos
 * multi-agent routing
 
 ---

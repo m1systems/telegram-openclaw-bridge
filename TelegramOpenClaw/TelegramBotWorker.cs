@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
+using System.Text.Json;
 using TelegramOpenClaw.Settings;
 using TelegramOpenClaw.Telegram.Models;
 
@@ -60,12 +61,20 @@ namespace TelegramOpenClaw
                     {
                         _offset = update.update_id + 1;
 
-                        if (update.message?.text == null)
+                        var message = update.message;
+                        if (message == null)
                             continue;
 
-                        await HandleMessageAsync(update.message, settings, stoppingToken);
-
-                        _lastSuccessfulOpenClawCallUtc = DateTimeOffset.UtcNow;
+                        if (message.photo != null && message.photo.Length > 0)
+                        {
+                            await HandlePhotoAsync(message, settings, stoppingToken);
+                            _lastSuccessfulOpenClawCallUtc = DateTimeOffset.UtcNow;
+                        }
+                        else if (message.text != null)
+                        {
+                            await HandleMessageAsync(message, settings, stoppingToken);
+                            _lastSuccessfulOpenClawCallUtc = DateTimeOffset.UtcNow;
+                        }
                     }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -162,6 +171,100 @@ namespace TelegramOpenClaw
             {
                 _logger.LogError(ex, "Error while processing Telegram message from user {UserId}.", userId);
                 await SendMessageAsync(settings, chatId, "Command failed.", ct);
+            }
+        }
+
+        private async Task HandlePhotoAsync(Message message, TelegramSettings settings, CancellationToken ct)
+        {
+            var chatId = message.chat.id;
+            var userId = message.from?.id ?? 0;
+            var username = message.from?.username ?? "<unknown>";
+            var caption = message.caption?.Trim() ?? string.Empty;
+
+            _logger.LogInformation(
+                "Incoming photo from user {UserId} (@{Username}) in chat {ChatId}. Caption: {Caption}",
+                userId, username, chatId, caption);
+
+            if (!settings.AllowedUserIds.Contains(userId))
+            {
+                var shouldRespond = settings.Unauthorized.RespondOnce && _unauthorizedTracker.ShouldRespond(userId);
+
+                if (shouldRespond)
+                {
+                    await SendMessageAsync(settings, chatId, settings.Unauthorized.ResponseText, ct);
+                    _logger.LogWarning("Unauthorized user {UserId} received one-time rejection response.", userId);
+
+                    if (settings.Unauthorized.PermanentlyMuteAfterFirstResponse)
+                        _unauthorizedTracker.MarkMuted(userId);
+                }
+                else
+                {
+                    _logger.LogWarning("Ignoring unauthorized user {UserId} silently.", userId);
+                }
+
+                return;
+            }
+
+            if (!_rateLimitTracker.TryConsume(userId, settings.RateLimit, out var isTemporarilyMuted))
+            {
+                if (!isTemporarilyMuted)
+                {
+                    await SendMessageAsync(settings, chatId, settings.RateLimit.ViolationResponseText, ct);
+                    _logger.LogWarning("Rate limit exceeded for user {UserId}; warning sent.", userId);
+                }
+                else
+                {
+                    _logger.LogWarning("Temporarily muted rate-limited user {UserId}; ignoring.", userId);
+                }
+
+                return;
+            }
+
+            try
+            {
+                // Select highest-resolution photo (last element has the largest dimensions)
+                var bestPhoto = message.photo!.OrderByDescending(p => p.width * p.height).First();
+
+                // Resolve file path via Telegram getFile API
+                var telegramClient = _httpClientFactory.CreateClient("telegram");
+                var getFileUrl = BuildTelegramUrl(settings.BotToken, $"getFile?file_id={bestPhoto.file_id}");
+                var fileResponse = await telegramClient.GetFromJsonAsync<ApiResponse<TelegramFile>>(getFileUrl, ct);
+
+                if (fileResponse?.result?.file_path == null)
+                {
+                    _logger.LogError("Failed to resolve file path for photo from user {UserId}.", userId);
+                    await SendMessageAsync(settings, chatId, "Failed to retrieve image.", ct);
+                    return;
+                }
+
+                var filePath = fileResponse.result.file_path;
+                var downloadUrl = $"https://api.telegram.org/file/bot{settings.BotToken}/{filePath}";
+
+                // Download image bytes
+                var imageBytes = await telegramClient.GetByteArrayAsync(downloadUrl, ct);
+
+                // Determine MIME type from file extension
+                var ext = Path.GetExtension(filePath).ToLowerInvariant();
+                var mimeType = ext switch
+                {
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    ".png" => "image/png",
+                    ".gif" => "image/gif",
+                    ".webp" => "image/webp",
+                    _ => "image/jpeg"
+                };
+
+                var response = await _openClawClient.SendImageAsync(chatId, imageBytes, mimeType, caption, ct);
+
+                if (string.IsNullOrWhiteSpace(response))
+                    response = "(No response)";
+
+                await SendMessageAsync(settings, chatId, response, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error while processing photo from user {UserId}.", userId);
+                await SendMessageAsync(settings, chatId, "Image processing failed.", ct);
             }
         }
 
