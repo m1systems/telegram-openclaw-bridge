@@ -49,15 +49,17 @@ Key design decisions:
 * Allow-list enforcement (only approved users can interact)
 * One-time unauthorized response + optional silent ignore
 * Rate limiting to prevent abuse or loops
-* Persistent OpenClaw sessions per chat:
+* Persistent OpenClaw sessions per chat, with generation-based reset support:
 
   ```
-  x-openclaw-session-key: telegram:<chatId>
+  x-openclaw-session-key: telegram:<chatId>          (generation 0)
+  x-openclaw-session-key: telegram:<chatId>:<n>      (after n resets)
   ```
 * Local slash commands:
 
   * `/help`
   * `/status`
+  * `/reset` — starts a fresh OpenClaw session for the current chat
 * Natural chat (no command prefix required)
 * Photo message support with optional caption forwarding
 * Console logging via `journalctl` (no log files)
@@ -203,8 +205,13 @@ Once running, send messages to your Telegram bot:
 * photo messages → forwarded to OpenClaw, with caption included if present
 * `/help` → shows available commands
 * `/status` → shows bridge and OpenClaw status
+* `/reset` → starts a fresh OpenClaw session for this chat (replies: `Session reset. Starting fresh.`)
 
-Each chat maintains a persistent OpenClaw session automatically.
+Session state (chat generation numbers) is persisted to:
+
+```
+~/.config/telegram-openclaw/session-state.json
+```
 
 ---
 

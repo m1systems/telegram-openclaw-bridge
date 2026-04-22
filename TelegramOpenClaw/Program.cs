@@ -88,6 +88,7 @@ namespace TelegramOpenClaw
 
             builder.Services.AddSingleton<UnauthorizedTracker>();
             builder.Services.AddSingleton<RateLimitTracker>();
+            builder.Services.AddSingleton<SessionStateStore>();
             builder.Services.AddHostedService<TelegramBotWorker>();
 
             using var app = builder.Build();

@@ -10,19 +10,20 @@ namespace TelegramOpenClaw
     {
         private readonly HttpClient _httpClient;
         private readonly OpenClawSettings _settings;
+        private readonly SessionStateStore _sessionStateStore;
         private readonly ILogger<OpenClawClient> _logger;
-        private readonly Dictionary<long, string> _sessionKeys = new();
-        private readonly object _sessionSync = new();
 
         public string BaseUrl => _settings.BaseUrl;
 
         public OpenClawClient(
             HttpClient httpClient,
             IOptions<OpenClawSettings> settings,
+            SessionStateStore sessionStateStore,
             ILogger<OpenClawClient> logger)
         {
             _httpClient = httpClient;
             _settings = settings.Value;
+            _sessionStateStore = sessionStateStore;
             _logger = logger;
 
             _httpClient.BaseAddress = new Uri(_settings.BaseUrl);
@@ -123,16 +124,17 @@ namespace TelegramOpenClaw
 
         public string GetSessionKey(long chatId)
         {
-            lock (_sessionSync)
-            {
-                if (!_sessionKeys.TryGetValue(chatId, out var sessionKey))
-                {
-                    sessionKey = BuildSessionKey(chatId);
-                    _sessionKeys[chatId] = sessionKey;
-                }
+            var generation = _sessionStateStore.GetGeneration(chatId);
+            return BuildSessionKey(chatId, generation);
+        }
 
-                return sessionKey;
-            }
+        /// <summary>Increments the session generation for this chat, causing future calls to use a new session key.</summary>
+        public string ResetSession(long chatId)
+        {
+            var generation = _sessionStateStore.Increment(chatId);
+            var newKey = BuildSessionKey(chatId, generation);
+            _logger.LogInformation("Session reset for chat {ChatId}; new session key: {SessionKey}", chatId, newKey);
+            return newKey;
         }
 
         private static string? TryExtractChatCompletionText(string raw)
@@ -163,9 +165,9 @@ namespace TelegramOpenClaw
             return null;
         }
 
-        private static string BuildSessionKey(long chatId)
+        private static string BuildSessionKey(long chatId, int generation)
         {
-            return $"telegram:{chatId}";
+            return generation == 0 ? $"telegram:{chatId}" : $"telegram:{chatId}:{generation}";
         }
     }
 }
