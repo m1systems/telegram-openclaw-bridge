@@ -49,18 +49,30 @@ Key design decisions:
 * Allow-list enforcement (only approved users can interact)
 * One-time unauthorized response + optional silent ignore
 * Rate limiting to prevent abuse or loops
-* Persistent OpenClaw sessions per chat:
+* Persistent OpenClaw sessions per chat, with generation-based reset support:
 
-  ```
-  x-openclaw-session-key: telegram:<chatId>
-  ```
+```
+x-openclaw-session-key: telegram:<chatId>        (initial session)
+x-openclaw-session-key: telegram:<chatId>:<N>    (after N resets)
+```
+
 * Local slash commands:
 
   * `/help`
   * `/status`
+  * `/reset` — increments the session generation and starts a fresh OpenClaw context for the current chat
+    (replies: `Session reset. Starting fresh.`)
 * Natural chat (no command prefix required)
 * Photo message support with optional caption forwarding
 * Console logging via `journalctl` (no log files)
+
+---
+
+## Why `/reset` exists
+
+LLMs have finite context windows. Over time, long conversations can degrade or fail due to context overflow.
+
+The `/reset` command allows you to explicitly start a fresh session while preserving chat identity using generation-based session keys.
 
 ---
 
@@ -82,8 +94,6 @@ The application loads configuration from:
 ```
 
 ### Example
-
-Copy the example config from the repo:
 
 ```bash
 mkdir -p ~/.config/telegram-openclaw
@@ -203,8 +213,34 @@ Once running, send messages to your Telegram bot:
 * photo messages → forwarded to OpenClaw, with caption included if present
 * `/help` → shows available commands
 * `/status` → shows bridge and OpenClaw status
+* `/reset` → increments session generation and starts a fresh OpenClaw session
+  (replies: `Session reset. Starting fresh.`)
 
-Each chat maintains a persistent OpenClaw session automatically.
+---
+
+## Session State
+
+Session state (chat generation numbers) is persisted to:
+
+```
+~/.config/telegram-openclaw/session-state.json
+```
+
+Behavior:
+
+* Lightweight JSON storage
+* Each chat tracks its own generation counter
+* Deleting the file resets all sessions
+* Restarting the service does **not** reset sessions
+
+---
+
+## Operational Notes
+
+* Very long conversations may require `/reset` due to LLM context limits
+* Telegram photo messages include multiple size variants (largest is used)
+* The bridge uses polling — no inbound ports required
+* Session state persists independently of service lifecycle
 
 ---
 
@@ -266,22 +302,20 @@ This makes the repo safe for OpenClaw-driven development workflows.
 
 ---
 
-## License
-
-MIT
-
----
-
 ## Summary
 
-This project provides a clean, minimal bridge between Telegram and OpenClaw:
+This project provides a minimal, production-ready bridge between Telegram and a local OpenClaw agent:
 
-* no external exposure
-* no unnecessary infrastructure
-* no operational complexity
-
-Just:
+* secure (localhost-only)
+* simple (no webhooks, no public endpoints)
+* controllable (allow-list + rate limiting)
 
 ```
 Telegram → OpenClaw → your agent system
 ```
+
+---
+
+## License
+
+MIT

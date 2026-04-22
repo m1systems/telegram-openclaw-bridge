@@ -313,13 +313,8 @@ namespace TelegramOpenClaw
                     }
 
                 case "/reset":
-                    //_openClawClient.ResetSession(chatId);
-
-                    await SendMessageAsync(
-                        settings,
-                        chatId,
-                        "Session reset is not yet implemented.",
-                        ct);
+                    _openClawClient.ResetSession(chatId);
+                    await SendMessageAsync(settings, chatId, "Session reset. Starting fresh.", ct);
                     return true;
 
                 default:
